@@ -90,12 +90,9 @@ def reportMatch(winner, loser):
       loser:  the id number of the player who lost
     """
     conn, c = connect()
-    query1 = "INSERT INTO Matches (player, opponent, result) values (%s, %s, 1)"
-    param1 = (winner, loser)
-    c.execute(query1, param1)
-    query2 = "INSERT INTO Matches (player, opponent, result) values (%s, %s, 0)"
-    param2 = (loser, winner)
-    c.execute(query2, param2)
+    query = "INSERT INTO Matches (winner, loser) values (%s, %s)"
+    param = (winner, loser)
+    c.execute(query, param)
     conn.commit()
     conn.close()
 

@@ -18,22 +18,22 @@ CREATE TABLE Players (
 
 CREATE TABLE Matches (
 	id SERIAL primary key,
-	player int references players(id),
-	opponent int references players(id),
-	result int);
+	winner int references players(id),
+	loser int references players(id)
+	);
 
 CREATE VIEW Wins AS
-	SELECT Players.id, COUNT(Matches.opponent) AS n
+	SELECT Players.id, COUNT(Matches.winner) AS n
 	FROM Players
-	LEFT JOIN (SELECT * FROM Matches WHERE result > 0) as Matches
-	ON Players.id = Matches.player
+	LEFT JOIN Matches
+	ON Players.id = Matches.winner
 	GROUP BY Players.id;
 
 CREATE VIEW Count AS
-	SELECT Players.id, Count(Matches.opponent) AS n
+	SELECT Players.id, COUNT(Matches.winner) AS n
 	FROM Players
 	LEFT JOIN Matches
-	ON Players.id = Matches.player
+	ON Players.id = Matches.winner OR Players.id = Matches.loser
 	GROUP BY Players.id;
 
 CREATE VIEW Standings AS
