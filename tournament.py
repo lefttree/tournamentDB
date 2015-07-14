@@ -5,43 +5,76 @@
 
 import psycopg2
 
+class DB:
+    def __init__(self, db_con_str="dbname=tournament"):
+        """
+        Create a database connection with the connection string
+        :param str db_con_str: Contains the database connection string, with a default value
+        when no argument is passed to the parameter
+        """
+        self.conn = psycopg2.connect(db_con_str)
+
+    def cursor(self):
+        """
+        return the current cursor of the database
+        """
+        return self.conn.cursor()
+
+    def execute(self, sql_query_string, param=None, and_close=False):
+        """
+        Executes SQL queries
+        :param str sql_query_string: contain the query string to be executed
+        :param bool and_close, if true, closes the database connection after executing
+        and committing the SQL Query
+        """
+        cursor = self.cursor()
+        if param:
+            cursor.execute(sql_query_string, param)
+        else:
+            cursor.execute(sql_query_string)
+        if and_close:
+            self.conn.commit()
+            self.close()
+        return {"conn": self.conn, "cursor": cursor if not and_close else None}
+
+    def close(self):
+        """
+        Closes the current database connection
+        """
+        return self.conn.close()
+
 
 def connect():
     """Connect to the PostgreSQL database.  Returns a database connection."""
     try:
-        db = psycopg2.connect("dbname=tournament")
+        #use DB class to get database connection and cursor
+        db = DB()
         cursor = db.cursor()
-        return db, cursor
+        return db.conn, cursor
     except:
         print "Failed to connect to the database"
 
 
 def deleteMatches():
     """Remove all the match records from the database."""
-    conn, c = connect()
+    #TRUNCATE is faster than DELETE
+    #But it bypasses the transaction log and cannot be restored
     query = "TRUNCATE matches CASCADE;"
-    c.execute(query)
-    conn.commit()
-    conn.close()
-
+    DB().execute(query, None, True)
 
 def deletePlayers():
     """Remove all the player records from the database."""
-    conn, c = connect()
     query = "TRUNCATE players CASCADE;"
-    c.execute(query)
-    conn.commit()
-    conn.close()
-
+    DB().execute(query, None, True)
 
 def countPlayers():
     """Returns the number of players currently registered."""
-    conn, c = connect()
+    #Count number of different ids => number of players
     query = "SELECT COUNT(id) FROM players;"
-    c.execute(query)
-    num = c.fetchall()
+    transaction = DB().execute(query)
+    num = transaction["cursor"].fetchall()
+    transaction["conn"].close()
     return num[0][0]
-
 
 def registerPlayer(name):
     """Adds a player to the tournament database.
@@ -56,9 +89,7 @@ def registerPlayer(name):
     # safely insert, and use python tuple
     query = "INSERT INTO players (name) values (%s)"
     param = (name, )
-    c.execute(query, param)
-    conn.commit()
-    conn.close()
+    DB().execute(query, param, True)
 
 
 def playerStandings():
@@ -75,10 +106,12 @@ def playerStandings():
         matches: the number of matches the player has played
     """
     conn, c = connect()
+    #Get result from view Standings 
     query = "SELECT id,name,wins,matches FROM Standings ORDER BY wins DESC;"
-    c.execute(query)
-    results = c.fetchall()
-    conn.close()
+    transaction = DB().execute(query)
+    #didn't close the connection, fetch results
+    results = transaction["cursor"].fetchall()
+    transaction["conn"].close()
     return results
 
 
@@ -89,12 +122,10 @@ def reportMatch(winner, loser):
       winner:  the id number of the player who won
       loser:  the id number of the player who lost
     """
-    conn, c = connect()
+    #Insert winner, loser into Matches table to record a match
     query = "INSERT INTO Matches (winner, loser) values (%s, %s)"
     param = (winner, loser)
-    c.execute(query, param)
-    conn.commit()
-    conn.close()
+    transaction = DB().execute(query, param, True)
 
 
 def swissPairings():
@@ -112,22 +143,12 @@ def swissPairings():
         id2: the second player's unique id
         name2: the second player's name
     """
-    conn, c = connect()
-    query = "SELECT id,name,wins FROM Standings ORDER BY Wins DESC;"
-    c.execute(query)
-    results = c.fetchall()
-    conn.close()
-    i = 0
-    pairings = []
-    playerAids = []
-    playerAnames = []
-    playerBids = []
-    playerBnames = []
-    while i < len(results):
-        playerAids.append(results[i][0])
-        playerAnames.append(results[i][1])
-        playerBids.append(results[i + 1][0])
-        playerBnames.append(results[i + 1][1])
-        i += 2
-    pairings = zip(playerAids, playerAnames, playerBids, playerBnames)
-    return pairings
+    #Select pairs of players with the same wins from View Wins
+    query = "SELECT a.id, a.name, b.id, b.name\
+            FROM Wins as a JOIN Wins as b\
+            ON a.n = b.n WHERE a.id > b.id\
+            "
+    transaction = DB().execute(query)
+    results = transaction["cursor"].fetchall()
+    transaction["conn"].close()
+    return results

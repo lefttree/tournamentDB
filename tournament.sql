@@ -39,7 +39,7 @@ CREATE TABLE Matches (
 * purpose: count each player's number of wins
 */
 CREATE VIEW Wins AS
-	SELECT Players.id, COUNT(Matches.winner) AS n
+	SELECT Players.id, Players.name, COUNT(Matches.winner) AS n
 	FROM Players
 	LEFT JOIN Matches
 	ON Players.id = Matches.winner
